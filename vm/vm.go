@@ -8,11 +8,13 @@ import (
 
 type VM struct {
 	heap     *Heap
+	process  *Process
 	thread   *Executor
 	builtins *Builtins
 	archive  *common.Archive
 	halted   bool
 	paniced  bool
+	panicmsg string
 }
 
 func (vm *VM) Run() {
@@ -27,8 +29,17 @@ func (vm *VM) Paniced() bool {
 	return vm.paniced
 }
 
-func (vm *VM) Init(archive *common.Archive) error {
+func (vm *VM) PanicMessage() string {
+	return vm.panicmsg
+}
+
+func (vm *VM) Process() *Process {
+	return vm.process
+}
+
+func (vm *VM) Init(archive *common.Archive, builtins *Builtins) error {
 	vm.archive = archive
+	vm.builtins = builtins
 	main, err := archive.MainModule()
 	if err != nil {
 		return fmt.Errorf("failed to find main module in archive: %w", err)
@@ -50,13 +61,14 @@ func (vm *VM) halt() {
 	vm.halted = true
 }
 
-func (vm *VM) panic() {
+func (vm *VM) panic(msg string) {
+	vm.panicmsg = msg
 	vm.paniced = true
 }
 
-func NewVM(builtins *Builtins) *VM {
+func NewVM() *VM {
 	return &VM{
-		heap:     NewHeap(),
-		builtins: builtins,
+		heap:    NewHeap(),
+		process: NewProcess(),
 	}
 }

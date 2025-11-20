@@ -1,9 +1,11 @@
 package vm_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/canpacis/flint/common"
+	"github.com/canpacis/flint/compiler"
 	"github.com/canpacis/flint/vm"
 	"github.com/stretchr/testify/assert"
 )
@@ -101,11 +103,11 @@ func TestLoadOps(t *testing.T) {
 
 	var DefaultBuiltins = vm.NewBuiltins()
 	DefaultBuiltins.Register("0", common.NewConst(common.I64Const, int64(1)))
-	machine := vm.NewVM(DefaultBuiltins)
+	machine := vm.NewVM()
 	mod := common.NewModule("main", 0)
 	_, err := mod.Consts.Write(common.NewConst(common.I64Const, int64(1)), 0)
 	assert.NoError(err)
-	machine.Init(common.NewArchive())
+	machine.Init(common.NewArchive(), DefaultBuiltins)
 	executor := vm.NewExecutor(machine)
 	assert.NoError(
 		executor.Frames().Push(vm.NewFrame(common.NewCompiledFn("main", 0, common.Instructions{}), mod, 0)),
@@ -173,9 +175,8 @@ func TestBinaryOps(t *testing.T) {
 		},
 	}
 
-	var DefaultBuiltins = vm.NewBuiltins()
-	machine := vm.NewVM(DefaultBuiltins)
-	machine.Init(common.NewArchive())
+	machine := vm.NewVM()
+	machine.Init(common.NewArchive(), vm.NewBuiltins())
 	executor := vm.NewExecutor(machine)
 
 	for i, test := range tests {
@@ -228,10 +229,9 @@ func TestCall(t *testing.T) {
 		{Builtin(), []*common.Const{}, nil},
 	}
 
-	var DefaultBuiltins = vm.NewBuiltins()
-	machine := vm.NewVM(DefaultBuiltins)
+	machine := vm.NewVM()
 	mod := common.NewModule("main", 0)
-	machine.Init(common.NewArchive())
+	machine.Init(common.NewArchive(), vm.NewBuiltins())
 	executor := vm.NewExecutor(machine)
 	assert.NoError(
 		executor.Frames().Push(vm.NewFrame(common.NewCompiledFn("main", 0, common.Instructions{}), mod, 0)),
@@ -326,11 +326,13 @@ func TestStack(t *testing.T) {
 	}
 }
 
-func SetupMachine(t *testing.T, mod *common.Module, fn *common.Const) *vm.VM {
+func SetupMachine(t *testing.T, mod *common.Module, builtins *vm.Builtins, fn *common.Const) *vm.VM {
 	assert := assert.New(t)
 
-	builtins := vm.DefaultBuiltins
-	vm := vm.NewVM(builtins)
+	machine := vm.NewVM()
+	if builtins == nil {
+		builtins = vm.DefaultBuiltins(machine)
+	}
 	fnidx, err := mod.Consts.Write(fn, 255)
 	assert.NoError(err)
 
@@ -338,9 +340,9 @@ func SetupMachine(t *testing.T, mod *common.Module, fn *common.Const) *vm.VM {
 	modidx, err := archive.Modules.Write(mod, 255)
 	assert.NoError(err)
 	archive.SetEntry(modidx, fnidx)
-	assert.NoError(vm.Init(archive))
+	assert.NoError(machine.Init(archive, builtins))
 
-	return vm
+	return machine
 }
 
 func TestRun(t *testing.T) {
@@ -358,11 +360,11 @@ func TestRun(t *testing.T) {
 	set = append(set, common.NewOp(common.OpHalt)...)
 	fn := common.NewConst(common.FnConst, common.NewCompiledFn("main", 0, set))
 
-	vm := SetupMachine(t, mod, fn)
+	vm := SetupMachine(t, mod, nil, fn)
 	vm.Run()
 
 	assert.Equal(true, vm.Halted(), "VM Halted")
-	assert.Equal(false, vm.Paniced(), "VM Paniced")
+	assert.Equal(false, vm.Paniced(), vm.PanicMessage())
 }
 
 func TestTrap(t *testing.T) {
@@ -374,26 +376,71 @@ func TestTrap(t *testing.T) {
 	set = append(set, common.NewOp(common.OpTrap)...)
 	fn := common.NewConst(common.FnConst, common.NewCompiledFn("main", 0, set))
 
-	vm := SetupMachine(t, mod, fn)
+	vm := SetupMachine(t, mod, nil, fn)
 	vm.Run()
 
 	assert.Equal(true, vm.Halted(), "VM Halted")
-	assert.Equal(true, vm.Paniced(), "VM Paniced")
+	assert.Equal(false, vm.Paniced(), vm.PanicMessage())
 }
 
 func TestPanic(t *testing.T) {
 	assert := assert.New(t)
 
 	mod := common.NewModule("main", common.NewVersion(0, 0, 1))
+	msg, err := mod.Consts.Write(common.NewConst(common.StrConst, "test panic"), 0)
+	assert.NoError(err)
 
 	var set common.Instructions
-	set = append(set, common.NewOp(common.OpLoadBuiltin, vm.DefaultBuiltins.Get("panic"))...)
+	set = append(set, common.NewOp(common.OpLoadConst, msg)...)
+	set = append(set, common.NewOp(common.OpLoadBuiltin, 0)...)
 	set = append(set, common.NewOp(common.OpCall, 1)...)
 	fn := common.NewConst(common.FnConst, common.NewCompiledFn("main", 0, set))
 
-	vm := SetupMachine(t, mod, fn)
+	vm := SetupMachine(t, mod, nil, fn)
 	vm.Run()
 
 	assert.Equal(true, vm.Halted(), "VM Halted")
-	assert.Equal(true, vm.Paniced(), "VM Paniced")
+	assert.Equal(true, vm.Paniced(), "VM Did not panic")
+	assert.Equal("test panic", vm.PanicMessage())
+}
+
+func TestSyscall(t *testing.T) {
+	assert := assert.New(t)
+
+	machine := vm.NewVM()
+
+	buf := new(bytes.Buffer)
+	process := machine.Process()
+	assert.NoError(process.WriteDescriptors.Push(buf))
+	bufidx := process.WriteDescriptors.Len() - 1
+
+	mod := common.NewModule("main", common.NewVersion(0, 0, 1))
+	msg, err := mod.Consts.Write(common.NewConst(common.DataConst, []byte("Hello, World!\n")), 0)
+	assert.NoError(err)
+
+	builtins := vm.DefaultBuiltins(machine)
+
+	var set common.Instructions
+	set = append(set, common.NewOp(common.OpLoadI64, 1)...)
+	set = append(set, common.NewOp(common.OpLoadI64, bufidx)...)
+	set = append(set, common.NewOp(common.OpLoadConst, msg)...)
+	set = append(set, common.NewOp(common.OpLoadBuiltin, builtins.Get("syscall"))...)
+	set = append(set, common.NewOp(common.OpCall, 3)...)
+	set = append(set, common.NewOp(common.OpHalt)...)
+	fn := common.NewConst(common.FnConst, common.NewCompiledFn("main", 0, set))
+
+	fnidx, err := mod.Consts.Write(fn, compiler.POOL_WRITE_LIMIT)
+	assert.NoError(err)
+
+	archive := common.NewArchive()
+	modidx, err := archive.Modules.Write(mod, compiler.POOL_WRITE_LIMIT)
+	assert.NoError(err)
+	archive.SetEntry(modidx, fnidx)
+	assert.NoError(machine.Init(archive, builtins))
+
+	machine.Run()
+
+	assert.Equal(true, machine.Halted(), "VM Halted")
+	assert.Equal(false, machine.Paniced(), machine.PanicMessage())
+	assert.Equal("Hello, World!\n", buf.String(), "Buffer")
 }

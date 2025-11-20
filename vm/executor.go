@@ -9,7 +9,7 @@ import (
 )
 
 var ErrUnknownOpCode = errors.New("unknown opcode")
-var ErrUnsupportedOp = errors.New("unsupported opcode")
+var ErrUnsupportedOp = errors.New("unsupported op")
 var ErrMissingConst = errors.New("missing constant index")
 var ErrFailedToGetModule = errors.New("failed to get module")
 var ErrFailedToLoadLink = errors.New("failed to load link")
@@ -26,7 +26,6 @@ type Executor struct {
 }
 
 func (e *Executor) Trap(reason string) {
-	e.vm.panic()
 	idx := e.vm.builtins.Get("panic")
 	if idx < 0 {
 		panic("Cannot trap, builtin panic is not provided")
@@ -89,7 +88,13 @@ func (e *Executor) Execute(code common.OpCode, operands []int) error {
 		e.pause()
 		return nil
 	case common.OpTrap:
-		e.vm.panic()
+		constant, err := e.stack.Pop()
+		if err == nil {
+			str, err := GetString(constant)
+			if err == nil {
+				e.vm.panic(str)
+			}
+		}
 		e.vm.halt()
 		return nil
 	case common.OpHalt:
@@ -103,7 +108,7 @@ func (e *Executor) Execute(code common.OpCode, operands []int) error {
 func (e *Executor) ExecuteCall(code common.OpCode, operands []int) error {
 	constant, err := e.stack.Pop()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get function constant: %w", err)
 	}
 
 	fn, err := GetFn(constant)
@@ -118,12 +123,12 @@ func (e *Executor) ExecuteCall(code common.OpCode, operands []int) error {
 	base := e.stack.Len()
 	current, err := e.frames.Top()
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot get current frame: %w", err)
 	}
 
 	frame := NewFrame(fn, current.mod, base-argsize)
 	if err := e.frames.Push(frame); err != nil {
-		return err
+		return fmt.Errorf("cannot push new frame: %w", err)
 	}
 
 	builtin, ok := fn.(*BuiltinFn)
@@ -132,14 +137,14 @@ func (e *Executor) ExecuteCall(code common.OpCode, operands []int) error {
 		for i := range argsize {
 			constant, err := e.stack.Get(frame.bp + i)
 			if err != nil {
-				return err
+				return fmt.Errorf("cannot get argument constant: %w", err)
 			}
 			args[i] = constant
 		}
 
 		value, err := builtin.Fn(args...)
 		if err != nil {
-			return err
+			return fmt.Errorf("builtin call failed: %w", err)
 		}
 		if value != nil {
 			return e.stack.Push(value)

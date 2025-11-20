@@ -1,6 +1,8 @@
 package vm
 
 import (
+	"fmt"
+
 	"github.com/canpacis/flint/common"
 )
 
@@ -83,14 +85,60 @@ func NewBuiltins() *Builtins {
 	}
 }
 
-var DefaultBuiltins = NewBuiltins()
-
 func CreatePanic() *common.Const {
 	var set common.Instructions
 	set = append(set, common.NewOp(common.OpTrap)...)
 	return common.NewConst(common.FnConst, common.NewCompiledFn("panic", 1, set))
 }
 
-func init() {
-	DefaultBuiltins.Register("panic", CreatePanic())
+type SyscallOp int
+
+const (
+	SyscallRead = SyscallOp(iota)
+	SyscallWrite
+)
+
+func CreateSyscall(processor Processor) *common.Const {
+	fn := NewBuiltinFn("syscall", 3, common.I64Const, func(args ...*common.Const) (*common.Const, error) {
+		zero := common.NewConst(common.I64Const, 0)
+
+		op, err := GetInt64(args[0])
+		if err != nil {
+			return zero, err
+		}
+		fd, err := GetInt64(args[1])
+		if err != nil {
+			return zero, err
+		}
+		data, err := GetData(args[2])
+		if err != nil {
+			return zero, err
+		}
+
+		switch SyscallOp(op) {
+		case SyscallRead:
+			return zero, nil
+		case SyscallWrite:
+			proccess := processor.Process()
+			w, err := proccess.WriteDescriptors.Get(int(fd))
+			if err != nil {
+				return zero, fmt.Errorf("invalid syscall descriptor %d: %w", fd, err)
+			}
+			n, err := w.Write(data)
+			if err != nil {
+				return zero, fmt.Errorf("failed to write to buffer: %w", err)
+			}
+			return common.NewConst(common.I64Const, int64(n)), nil
+		default:
+			return zero, fmt.Errorf("invalid op argument for syscall %d", op)
+		}
+	})
+	return common.NewConst(common.FnConst, fn)
+}
+
+func DefaultBuiltins(processor Processor) *Builtins {
+	builtins := NewBuiltins()
+	builtins.Register("panic", CreatePanic())
+	builtins.Register("syscall", CreateSyscall(processor))
+	return builtins
 }
