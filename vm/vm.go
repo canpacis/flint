@@ -10,16 +10,9 @@ type VM struct {
 	heap     *Heap
 	thread   *Executor
 	builtins *Builtins
+	archive  *common.Archive
 	halted   bool
 	paniced  bool
-}
-
-func (vm *VM) halt() {
-	vm.halted = true
-}
-
-func (vm *VM) panic() {
-	vm.paniced = true
 }
 
 func (vm *VM) Run() {
@@ -35,6 +28,7 @@ func (vm *VM) Paniced() bool {
 }
 
 func (vm *VM) Init(archive *common.Archive) error {
+	vm.archive = archive
 	main, err := archive.MainModule()
 	if err != nil {
 		return fmt.Errorf("failed to find main module in archive: %w", err)
@@ -50,6 +44,14 @@ func (vm *VM) Init(archive *common.Archive) error {
 	frame := NewFrame(fn, main, 0)
 	vm.thread = NewExecutor(vm)
 	return vm.thread.frames.Push(frame)
+}
+
+func (vm *VM) halt() {
+	vm.halted = true
+}
+
+func (vm *VM) panic() {
+	vm.paniced = true
 }
 
 func NewVM(builtins *Builtins) *VM {

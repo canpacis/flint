@@ -9,6 +9,8 @@ import (
 	"github.com/canpacis/flint/common"
 )
 
+const POOL_WRITE_LIMIT = 1024
+
 type IRCompiler struct {
 	version  common.Version
 	archive  *common.Archive
@@ -122,6 +124,13 @@ func (c *IRCompiler) Compile() error {
 }
 
 func (c *IRCompiler) WriteTo(w io.Writer) (int64, error) {
+	entrymod, err := c.archive.Modules.Write(c.module, POOL_WRITE_LIMIT)
+	if err != nil {
+		return 0, err
+	}
+	entryconst := c.module.Consts.Get(POOL_WRITE_LIMIT)
+
+	c.archive.SetEntry(entrymod, entryconst)
 	encoded, err := c.archive.MarshalBinary()
 	if err != nil {
 		return 0, err

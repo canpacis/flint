@@ -265,27 +265,3 @@ func TestVersion(t *testing.T) {
 		}
 	}
 }
-
-// func TestEntryPoint(t *testing.T) {
-// 	assert := assert.New(t)
-
-// 	type EntryPointTest struct {
-// 		Module     int
-// 		Const      int
-// 		EntryPoint common.EntryPoint
-// 	}
-
-// 	tests := []EntryPointTest{
-// 		{0, 0, common.NewEntryPoint(0, 0)},
-// 		{1, 0, common.NewEntryPoint(1, 0)},
-// 		{1, 1, common.NewEntryPoint(1, 1)},
-// 		{256, 257, common.NewEntryPoint(256, 257)},
-// 		{4294967295, 4294967295, common.NewEntryPoint(4294967295, 4294967295)},
-// 		{0, 1, common.NewEntryPoint(4294967296, 4294967297)},
-// 	}
-
-// 	for i, test := range tests {
-// 		assert.Equalf(test.Module, test.EntryPoint.Module(), "Module: Test case %d", i)
-// 		assert.Equalf(test.Const, test.EntryPoint.Const(), "Const: Test case %d", i)
-// 	}
-// }

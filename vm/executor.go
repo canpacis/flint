@@ -20,6 +20,9 @@ type Executor struct {
 	vm     *VM
 	stack  *Stack[*common.Const]
 	frames *Stack[*Frame]
+	links  map[int]*common.Module
+	paused bool
+	done   bool
 }
 
 func (e *Executor) Trap(reason string) {
@@ -39,8 +42,12 @@ func (e *Executor) Trap(reason string) {
 	}
 }
 
+func (e *Executor) Running() bool {
+	return !e.vm.halted && !e.done && !e.paused
+}
+
 func (e *Executor) Run() {
-	for !e.vm.halted {
+	for e.Running() {
 		frame, err := e.frames.Top()
 		if err != nil {
 			e.Trap(fmt.Errorf("failed to get frame: %w", err).Error())
@@ -79,10 +86,12 @@ func (e *Executor) Execute(code common.OpCode, operands []int) error {
 	case common.OpJmp, common.OpJmpz, common.OpJmpt, common.OpJmpn, common.OpJmpp:
 		return e.ExecuteJump(code, operands)
 	case common.OpYield:
-		// e.paused = true
+		e.pause()
 		return nil
 	case common.OpTrap:
-		return e.ExecuteTrap()
+		e.vm.panic()
+		e.vm.halt()
+		return nil
 	case common.OpHalt:
 		e.vm.halt()
 		return nil
@@ -144,6 +153,13 @@ func (e *Executor) ExecuteReturn(code common.OpCode) error {
 	if err != nil {
 		return err
 	}
+
+	if e.frames.Len() == 0 {
+		// TODO: Executor is done, move the return value to the main thread
+		e.finish()
+		return nil
+	}
+
 	locals := frame.fn.Locals()
 	var returns = new(common.Const)
 
@@ -164,14 +180,6 @@ func (e *Executor) ExecuteReturn(code common.OpCode) error {
 	if returns != nil {
 		return e.stack.Push(returns)
 	}
-	return nil
-}
-
-func (e *Executor) ExecuteTrap() error {
-	fmt.Printf("Program paniced\n\n")
-	fmt.Println(e.frames)
-	e.vm.halt()
-	e.vm.panic()
 	return nil
 }
 
@@ -343,23 +351,17 @@ func (e *Executor) Context() (*common.Module, error) {
 }
 
 func (e *Executor) LoadLink(idx int) (*common.Module, error) {
-	// mod, err := e.Context()
-	// if err != nil {
-	// 	return nil, err
-	// }
+	cached, ok := e.links[idx]
+	if ok {
+		return cached, nil
+	}
+	mod := common.NewModule("", 0)
+	if err := e.vm.archive.Modules.Read(mod, idx); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrFailedToLoadLink, err)
+	}
 
-	// TODO: Cache links instead of decoding them each time
-	// cached, ok := vm.links[idx]
-	// if ok {
-	// 	return cached, nil
-	// }
-	// link := common.NewModule("", 0)
-	// if err := mod.Links.Read(link, idx); err != nil {
-	// 	return nil, fmt.Errorf("%w: %w", ErrFailedToLoadLink, err)
-	// }
-	// vm.links[idx] = mod
-	// return link, nil
-	return nil, nil
+	e.links[idx] = mod
+	return mod, nil
 }
 
 func (e *Executor) Stack() *Stack[*common.Const] {
@@ -368,6 +370,14 @@ func (e *Executor) Stack() *Stack[*common.Const] {
 
 func (e *Executor) Frames() *Stack[*Frame] {
 	return e.frames
+}
+
+func (e *Executor) pause() {
+	e.paused = true
+}
+
+func (e *Executor) finish() {
+	e.done = true
 }
 
 const STACK_SIZE = 4096

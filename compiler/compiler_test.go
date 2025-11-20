@@ -1,6 +1,7 @@
 package compiler_test
 
 import (
+	"bytes"
 	"testing"
 
 	"github.com/canpacis/flint/ast"
@@ -161,4 +162,53 @@ func TestCompileBlock(t *testing.T) {
 			assert.Equalf(test.Expected, []byte(set), "Test case %d", i)
 		}
 	}
+}
+
+func TestCompile(t *testing.T) {
+	assert := assert.New(t)
+
+	program := ast.NewProgram(
+		ast.Mod("main"),
+		[]*ast.LinkStmt{
+			ast.Link(0, "io"),
+			ast.Link(1, "std"),
+		},
+		nil,
+		[]*ast.ConstStmt{
+			ast.Const(0, "i64", ast.Int(0)),          // Size 9, Index 0
+			ast.Const(1, "u32", ast.Int(0)),          // Size 5, Index 9
+			ast.Const(2, "str", ast.String("Hello")), // Size 10, Index 14
+			ast.FnConst("main", compiler.POOL_WRITE_LIMIT, "fn", ast.Fn(
+				ast.NewOp("load.const", 2),
+				ast.NewOp("load.const", 1),
+				ast.NewOp("load.const", 0),
+				ast.NewOp("load.modconst", 0, 1),
+				ast.NewOp("load.modconst", 0, 0),
+				ast.NewOp("load.modconst", 1, 0),
+				ast.NewOp("load.i32", 256),
+				ast.NewOp("load.i64", 256),
+				ast.NewOp("load.u32", 256),
+				ast.NewOp("load.u64", 256),
+				ast.NewOp("load.builtin", 0), // Panic
+			)),
+		},
+	)
+
+	c := compiler.NewIRCompiler(common.NewVersion(0, 0, 1))
+
+	io := ast.NewProgram(ast.Mod("io"), nil, nil, []*ast.ConstStmt{
+		ast.Const(0, "u32", ast.Int(0)),      // Size 5, Index 0
+		ast.Const(1, "bool", ast.Bool(true)), // Size 1, Index 5
+	})
+	std := ast.NewProgram(ast.Mod("std"), nil, nil, []*ast.ConstStmt{
+		ast.Const(0, "i64", ast.Int(1)), // Size 9, Index 0
+	})
+
+	c.Init(program, map[string]*ast.Program{"io": io, "std": std}, map[int]int{0: 0})
+
+	assert.NoError(c.Compile())
+	buf := new(bytes.Buffer)
+	_, err := c.WriteTo(buf)
+	assert.NoError(err)
+	assert.NotEqual(0, buf.Len())
 }

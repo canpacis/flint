@@ -335,7 +335,7 @@ func SetupMachine(t *testing.T, mod *common.Module, fn *common.Const) *vm.VM {
 	assert.NoError(err)
 
 	archive := common.NewArchive()
-	modidx, err := archive.Modules.Write(mod, 0)
+	modidx, err := archive.Modules.Write(mod, 255)
 	assert.NoError(err)
 	archive.SetEntry(modidx, fnidx)
 	assert.NoError(vm.Init(archive))
