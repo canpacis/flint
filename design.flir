@@ -1,0 +1,40 @@
+module main
+
+const 0 i32 123
+const 1 str "Hello"
+const 2 str "\n"
+const 3 data [0x01, 0x02, 0x03, 0x04]
+
+link 0 "io" ; link "io" module to the import pool with id 0
+link 1 "std"
+
+fn print 4 1 ; define a print fn with 1 local, put it in the const pool with id 4
+end
+
+fn main 255 0 ; define the main fn with 0 local, put it in the const pool with id 255 which is the entry point
+  load.const 1 0 ; load const 0 from linked module 1
+  load.local 0
+  load.builtin 0
+  load.imm.i64 0
+  load.const 4
+  call 0        ; calls the fn on the top of the stack with 0 args
+
+  jmp  $label ; jump to label
+  jmpz $label ; jump to label if value = 0
+  jmpt $label ; jump to label if value != 0
+  jmpn $label ; jump to label if value < 0
+  jmpp $label ; jump to label if value > 0
+
+  $label ; defines a label "label"
+    ; label block
+  end
+
+  load.imm.i64 0
+  halt
+end
+
+type User 0     ; define a type with id 0
+  age.builtin 0 ; define field with a builtin type id
+  profession 0  ; define field with a defined type id
+  name.mod 1 0  ; define field with type ref from another module (std.String)
+end
