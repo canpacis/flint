@@ -194,12 +194,12 @@ func TestModules(t *testing.T) {
 			return mod
 		}},
 		{func() *common.Module {
-			// io := common.NewModule("io", common.NewVersion(0, 0, 1))
-			// std := common.NewModule("std", common.NewVersion(0, 0, 1))
+			io := common.NewModule("io", common.NewVersion(0, 0, 1))
+			std := common.NewModule("std", common.NewVersion(0, 0, 1))
 
 			mod := common.NewModule("main", common.NewVersion(0, 0, 1))
-			// mod.Links.Write(io, 0)
-			// mod.Links.Write(std, 1)
+			mod.Links.Write(io, 0)
+			mod.Links.Write(std, 1)
 			return mod
 		}},
 		{func() *common.Module {
@@ -210,12 +210,12 @@ func TestModules(t *testing.T) {
 			return mod
 		}},
 		{func() *common.Module {
-			// io := common.NewModule("io", common.NewVersion(0, 0, 1))
-			// std := common.NewModule("std", common.NewVersion(0, 0, 1))
+			io := common.NewModule("io", common.NewVersion(0, 0, 1))
+			std := common.NewModule("std", common.NewVersion(0, 0, 1))
 			mod := common.NewModule("main", common.NewVersion(0, 0, 1))
 
-			// mod.Links.Write(io, 0)
-			// mod.Links.Write(std, 1)
+			mod.Links.Write(io, 0)
+			mod.Links.Write(std, 1)
 
 			mod.Consts.Write(common.NewConst(common.StrConst, "Hello, World!"), 0)
 			mod.Consts.Write(common.NewConst(common.I64Const, int64(0)), 1)
