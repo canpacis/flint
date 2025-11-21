@@ -105,7 +105,7 @@ func TestLoadOps(t *testing.T) {
 	DefaultBuiltins.Register("0", common.NewConst(common.I64Const, int64(1)))
 	machine := vm.NewVM()
 	mod := common.NewModule("main", 0)
-	_, err := mod.Consts.Write(common.NewConst(common.I64Const, int64(1)), 0)
+	_, err := mod.Consts.Set(0, common.NewConst(common.I64Const, int64(1)))
 	assert.NoError(err)
 	machine.Init(common.NewArchive(), DefaultBuiltins)
 	executor := vm.NewExecutor(machine)
@@ -333,11 +333,11 @@ func SetupMachine(t *testing.T, mod *common.Module, builtins *vm.Builtins, fn *c
 	if builtins == nil {
 		builtins = vm.DefaultBuiltins(machine)
 	}
-	fnidx, err := mod.Consts.Write(fn, 255)
+	fnidx, err := mod.Consts.Set(compiler.POOL_WRITE_LIMIT, fn)
 	assert.NoError(err)
 
 	archive := common.NewArchive()
-	modidx, err := archive.Modules.Write(mod, 255)
+	modidx, err := archive.Modules.Set(compiler.POOL_WRITE_LIMIT, mod)
 	assert.NoError(err)
 	archive.SetEntry(modidx, fnidx)
 	assert.NoError(machine.Init(archive, builtins))
@@ -349,7 +349,7 @@ func TestRun(t *testing.T) {
 	assert := assert.New(t)
 
 	mod := common.NewModule("main", common.NewVersion(0, 0, 1))
-	add, err := mod.Consts.Write(Add(), 0)
+	add, err := mod.Consts.Set(0, Add())
 	assert.NoError(err)
 
 	var set common.Instructions
@@ -387,7 +387,7 @@ func TestPanic(t *testing.T) {
 	assert := assert.New(t)
 
 	mod := common.NewModule("main", common.NewVersion(0, 0, 1))
-	msg, err := mod.Consts.Write(common.NewConst(common.StrConst, "test panic"), 0)
+	msg, err := mod.Consts.Set(0, common.NewConst(common.StrConst, "test panic"))
 	assert.NoError(err)
 
 	var set common.Instructions
@@ -415,7 +415,7 @@ func TestSyscall(t *testing.T) {
 	bufidx := process.WriteDescriptors.Len() - 1
 
 	mod := common.NewModule("main", common.NewVersion(0, 0, 1))
-	msg, err := mod.Consts.Write(common.NewConst(common.DataConst, []byte("Hello, World!\n")), 0)
+	msg, err := mod.Consts.Set(0, common.NewConst(common.DataConst, []byte("Hello, World!\n")))
 	assert.NoError(err)
 
 	builtins := vm.DefaultBuiltins(machine)
@@ -429,11 +429,11 @@ func TestSyscall(t *testing.T) {
 	set = append(set, common.NewOp(common.OpHalt)...)
 	fn := common.NewConst(common.FnConst, common.NewCompiledFn("main", 0, set))
 
-	fnidx, err := mod.Consts.Write(fn, compiler.POOL_WRITE_LIMIT)
+	fnidx, err := mod.Consts.Set(compiler.POOL_WRITE_LIMIT, fn)
 	assert.NoError(err)
 
 	archive := common.NewArchive()
-	modidx, err := archive.Modules.Write(mod, compiler.POOL_WRITE_LIMIT)
+	modidx, err := archive.Modules.Set(compiler.POOL_WRITE_LIMIT, mod)
 	assert.NoError(err)
 	archive.SetEntry(modidx, fnidx)
 	assert.NoError(machine.Init(archive, builtins))

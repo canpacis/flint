@@ -1,6 +1,9 @@
 package common
 
-import "encoding/binary"
+import (
+	"encoding/binary"
+	"io"
+)
 
 type Archive struct {
 	Modules    *Pool
@@ -21,7 +24,7 @@ func (a *Archive) SetEntry(mod, c int) {
 
 func (a *Archive) MainModule() (*Module, error) {
 	mod := NewModule("", 0)
-	if err := a.Modules.Read(mod, int(a.entrymod)); err != nil {
+	if err := a.Modules.Get(int(a.entrymod), mod); err != nil {
 		return nil, err
 	}
 	return mod, nil
@@ -33,28 +36,46 @@ func (a *Archive) MainFn() (*Const, error) {
 		return nil, err
 	}
 	fn := new(Const)
-	if err := mod.Consts.Read(fn, int(a.entryconst)); err != nil {
+	if err := mod.Consts.Get(int(a.entryconst), fn); err != nil {
 		return nil, err
 	}
 	return fn, nil
 }
 
-func (a *Archive) MarshalBinary() ([]byte, error) {
-	length := a.Modules.Len()
-	buf := make([]byte, length+4 /* entry mod index */ +4 /* entry const index */ +4 /* mod list length */)
-
-	binary.LittleEndian.PutUint32(buf[0:], a.entrymod)
-	binary.LittleEndian.PutUint32(buf[4:], a.entryconst)
-	binary.LittleEndian.PutUint32(buf[8:], uint32(length))
-	copy(buf[12:], a.Modules.Bytes())
-
-	return buf, nil
+func (a *Archive) WriteTo(w io.Writer) (n int64, err error) {
+	if err := binary.Write(w, binary.LittleEndian, a.entrymod); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if err := binary.Write(w, binary.LittleEndian, a.entryconst); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if m, err := a.Modules.WriteTo(w); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	return
 }
 
-func (a *Archive) UnmarshalBinary(data []byte) error {
-	a.entrymod = binary.LittleEndian.Uint32(data[0:])
-	a.entryconst = binary.LittleEndian.Uint32(data[4:])
-	length := int(binary.LittleEndian.Uint32(data[8:]))
-	copy(a.Modules.data[:length], data[12:12+length])
-	return nil
+func (a *Archive) ReadFrom(r io.Reader) (n int64, err error) {
+	if err := binary.Read(r, binary.LittleEndian, &a.entrymod); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if err := binary.Read(r, binary.LittleEndian, &a.entryconst); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if m, err := a.Modules.ReadFrom(r); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	return
 }

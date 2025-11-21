@@ -3,7 +3,7 @@ package common
 import (
 	"encoding/binary"
 	"fmt"
-	"math"
+	"io"
 )
 
 type ConstType byte
@@ -88,34 +88,74 @@ func (c *CompiledFn) Len() int {
 	return 4 /* name length */ + len(c.name) + 4 /* local count */ + 4 /* length of instructions */ + len(c.instructions)
 }
 
-func (c *CompiledFn) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, c.Len())
-	off := 0
-	binary.LittleEndian.PutUint32(buf[off:], uint32(len(c.name)))
-	off += 4
-	off += copy(buf[off:], c.name)
-	binary.LittleEndian.PutUint32(buf[off:], uint32(c.locals))
-	off += 4
-	binary.LittleEndian.PutUint32(buf[off:], uint32(len(c.instructions)))
-	off += 4
-	off += copy(buf[off:], c.instructions)
-	return buf, nil
+func (c *CompiledFn) WriteTo(w io.Writer) (n int64, err error) {
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(c.name))); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if m, err := w.Write([]byte(c.name)); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+
+	if err := binary.Write(w, binary.LittleEndian, uint32(c.locals)); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(c.instructions))); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+
+	if m, err := w.Write(c.instructions); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+	return
 }
 
-func (c *CompiledFn) UnmarshalBinary(b []byte) error {
-	off := 0
-	length := int(binary.LittleEndian.Uint32(b[off:]))
-	off += 4
+func (c *CompiledFn) ReadFrom(r io.Reader) (n int64, err error) {
+	var length uint32
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+
 	buf := make([]byte, length)
-	off += copy(buf, b[off:off+length])
-	c.name = string(buf)
-	c.locals = int(binary.LittleEndian.Uint32(b[off:]))
-	off += 4
-	length = int(binary.LittleEndian.Uint32(b[off:]))
-	off += 4
+	if m, err := r.Read(buf); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+		c.name = string(buf)
+	}
+
+	var locals uint32
+	if err := binary.Read(r, binary.LittleEndian, &locals); err != nil {
+		return n, err
+	} else {
+		n += 4
+		c.locals = int(locals)
+	}
+
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+
 	c.instructions = make(Instructions, length)
-	off += copy(c.instructions, b[off:off+length])
-	return nil
+	if m, err := r.Read(c.instructions); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+	return
 }
 
 func NewCompiledFn(name string, locals int, set Instructions) *CompiledFn {
@@ -131,137 +171,191 @@ type Const struct {
 	Value any
 }
 
-func (c *Const) raw() []byte {
-	switch c.Type {
-	case StrConst:
-		return []byte(c.Value.(string))
-	case DataConst:
-		return c.Value.([]byte)
-	case FnConst:
-		raw, _ := c.Value.(*CompiledFn).MarshalBinary()
-		return raw
-	default:
-		panic(fmt.Sprintf("cannot read raw value of const type %d", c.Type))
+func (c *Const) WriteTo(w io.Writer) (n int64, err error) {
+	if _, err := w.Write([]byte{byte(c.Type)}); err != nil {
+		return n, err
+	} else {
+		n++
 	}
-}
-
-func (c *Const) MarshalBinary() ([]byte, error) {
-	switch c.Type {
-	case TrueConst, FalseConst:
-		return []byte{byte(c.Type)}, nil
-	case U8Const:
-		return []byte{byte(c.Type), c.Value.(uint8)}, nil
-	case U16Const:
-		buf := make([]byte, 3)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint16(buf[1:], c.Value.(uint16))
-		return buf, nil
-	case U32Const:
-		buf := make([]byte, 5)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint32(buf[1:], c.Value.(uint32))
-		return buf, nil
-	case U64Const:
-		buf := make([]byte, 9)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint64(buf[1:], c.Value.(uint64))
-		return buf, nil
-	case I8Const:
-		return []byte{byte(c.Type), uint8(c.Value.(int8))}, nil
-	case I16Const:
-		buf := make([]byte, 3)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint16(buf[1:], uint16(c.Value.(int16)))
-		return buf, nil
-	case I32Const:
-		buf := make([]byte, 5)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint32(buf[1:], uint32(c.Value.(int32)))
-		return buf, nil
-	case I64Const:
-		buf := make([]byte, 9)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint64(buf[1:], uint64(c.Value.(int64)))
-		return buf, nil
-	case F32Const:
-		buf := make([]byte, 1 /*type size*/ +4 /* f32 size*/)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint32(buf[1:], math.Float32bits(c.Value.(float32)))
-		return buf, nil
-	case F64Const:
-		buf := make([]byte, 1 /*type size*/ +8 /* f64 size*/)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint64(buf[1:], math.Float64bits(c.Value.(float64)))
-		return buf, nil
-	case RefConst:
-		buf := make([]byte, 1 /*type size*/ +4 /* u32 size*/)
-		buf[0] = byte(c.Type)
-		binary.LittleEndian.PutUint32(buf[1:], c.Value.(uint32))
-		return buf, nil
-	case StrConst, DataConst, FnConst:
-		data := c.raw()
-		length := len(data)
-		buf := make([]byte, length+1 /* type size */ +4 /* length size */)
-		off := 0
-		buf[off] = byte(c.Type)
-		off++
-		binary.LittleEndian.PutUint32(buf[off:], uint32(length))
-		off += 4
-		copy(buf[off:], data)
-		return buf, nil
-	default:
-		return nil, fmt.Errorf("failed to encode const: invalid type %d", c.Type)
-	}
-}
-
-func (c *Const) UnmarshalBinary(data []byte) error {
-	off := 0
-	c.Type = ConstType(data[off])
-	off++
 
 	switch c.Type {
 	case TrueConst, FalseConst:
-	case U8Const:
-		c.Value = uint8(data[off])
-	case U16Const:
-		c.Value = binary.LittleEndian.Uint16(data[off:])
-	case U32Const:
-		c.Value = binary.LittleEndian.Uint32(data[off:])
-	case U64Const:
-		c.Value = binary.LittleEndian.Uint64(data[off:])
-	case I8Const:
-		c.Value = int8(uint8(data[off]))
-	case I16Const:
-		c.Value = int16(binary.LittleEndian.Uint16(data[off:]))
-	case I32Const:
-		c.Value = int32(binary.LittleEndian.Uint32(data[off:]))
-	case I64Const:
-		c.Value = int64(binary.LittleEndian.Uint64(data[off:]))
-	case F32Const:
-		c.Value = math.Float32frombits(binary.LittleEndian.Uint32(data[off:]))
-	case F64Const:
-		c.Value = math.Float64frombits(binary.LittleEndian.Uint64(data[off:]))
-	case RefConst:
-		c.Value = binary.LittleEndian.Uint32(data[off:])
-	case StrConst, DataConst, FnConst:
-		length := int(binary.LittleEndian.Uint32(data[off:]))
-		off += 4
+	case U8Const, U16Const, U32Const, U64Const, I8Const, I16Const, I32Const, I64Const, F32Const, F64Const, RefConst:
+		size := int64(0)
+		switch c.Type {
+		case U8Const, I8Const:
+			size = 1
+		case U16Const, I16Const:
+			size = 2
+		case U32Const, I32Const, F32Const, RefConst:
+			size = 4
+		case U64Const, I64Const, F64Const:
+			size = 8
+		}
+
+		if err := binary.Write(w, binary.LittleEndian, c.Value); err != nil {
+			return n, err
+		}
+		n += size
+	case StrConst, DataConst:
+		var data []byte
+
 		switch c.Type {
 		case StrConst:
-			c.Value = string(data[off : off+length])
+			data = []byte(c.Value.(string))
 		case DataConst:
-			c.Value = data[off : off+length]
-		case FnConst:
-			fn := &CompiledFn{}
-			if err := fn.UnmarshalBinary(data[off : off+length]); err != nil {
-				return err
-			}
-			c.Value = fn
+			data = c.Value.([]byte)
+		}
+
+		if err := binary.Write(w, binary.LittleEndian, uint32(len(data))); err != nil {
+			return n, err
+		} else {
+			n += 4
+		}
+		if m, err := w.Write(data); err != nil {
+			return n, err
+		} else {
+			n += int64(m)
+		}
+	case FnConst:
+		data := c.Value.(*CompiledFn)
+		if m, err := data.WriteTo(w); err != nil {
+			return n, err
+		} else {
+			n += m
 		}
 	default:
-		return fmt.Errorf("failed to decode const: invalid type %d", c.Type)
+		return n, fmt.Errorf("failed to encode const: invalid type %d", c.Type)
 	}
-	return nil
+
+	return
+}
+
+func (c *Const) ReadFrom(r io.Reader) (n int64, err error) {
+	typ := make([]byte, 1)
+	if _, err := r.Read(typ); err != nil {
+		return n, err
+	} else {
+		c.Type = ConstType(typ[0])
+	}
+
+	switch c.Type {
+	case TrueConst, FalseConst:
+	case U8Const:
+		var value uint8
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 1
+	case I8Const:
+		var value int8
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 1
+	case U16Const:
+		var value uint16
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 2
+	case I16Const:
+		var value int16
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 2
+	case U32Const, RefConst:
+		var value uint32
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 4
+	case I32Const:
+		var value int32
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 4
+	case F32Const:
+		var value float32
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 4
+	case U64Const:
+		var value uint64
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 8
+	case I64Const:
+		var value int64
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 8
+	case F64Const:
+		var value float64
+		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
+			return n, err
+		} else {
+			c.Value = value
+		}
+		n += 8
+	case StrConst, DataConst:
+		var length uint32
+
+		if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+			return n, err
+		} else {
+			n += 4
+		}
+
+		buf := make([]byte, length)
+		if m, err := r.Read(buf); err != nil {
+			return n, err
+		} else {
+			n += int64(m)
+		}
+
+		switch c.Type {
+		case StrConst:
+			c.Value = string(buf)
+		case DataConst:
+			c.Value = buf
+		}
+	case FnConst:
+		fn := &CompiledFn{}
+		if m, err := fn.ReadFrom(r); err != nil {
+			return n, err
+		} else {
+			n += m
+		}
+		c.Value = fn
+	default:
+		return n, fmt.Errorf("failed to decode const: invalid type %d", c.Type)
+	}
+
+	return
 }
 
 func (c *Const) String() string {

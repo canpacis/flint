@@ -1,5 +1,7 @@
 package common
 
+import "io"
+
 type TypeField struct {
 	Name string
 	Type int
@@ -10,12 +12,15 @@ type Type struct {
 	Fields []TypeField
 }
 
-func (t *Type) MarshalBinary() ([]byte, error) {
-	return []byte{42}, nil
+func (t *Type) WriteTo(w io.Writer) (n int64, err error) {
+	m, err := w.Write([]byte{42})
+	return int64(m), err
 }
 
-func (t *Type) UnmarshalBinary(b []byte) error {
-	return nil
+func (t *Type) ReadFrom(r io.Reader) (n int64, err error) {
+	buf := make([]byte, 1)
+	m, err := r.Read(buf)
+	return int64(m), err
 }
 
 func NewType() *Type {

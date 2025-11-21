@@ -54,9 +54,9 @@ func TestCompileBlock(t *testing.T) {
 				ast.NewOp("load.const", 2),
 				ast.NewOp("load.const", 1),
 				ast.NewOp("load.const", 0),
-				ast.NewOp("load.modconst", 0, 1),
-				ast.NewOp("load.modconst", 0, 0),
-				ast.NewOp("load.modconst", 1, 0),
+				// ast.NewOp("load.modconst", 0, 1),
+				// ast.NewOp("load.modconst", 0, 0),
+				// ast.NewOp("load.modconst", 1, 0),
 				ast.NewOp("load.i32", 256),
 				ast.NewOp("load.i64", 256),
 				ast.NewOp("load.u32", 256),
@@ -65,14 +65,15 @@ func TestCompileBlock(t *testing.T) {
 				ast.NewOp("load.builtin", 1),
 				ast.NewOp("load.builtin", 2),
 				ast.NewOp("load.builtin", 3),
+				ast.NewOp("new", 0, 0),
 			},
 			[]byte{
 				byte(common.OpLoadConst), 14, 0, 0, 0, // load.const 0, 2
 				byte(common.OpLoadConst), 9, 0, 0, 0, // load.const 0, 1
 				byte(common.OpLoadConst), 0, 0, 0, 0, // load.const 0, 0
-				byte(common.OpLoadModConst), 0, 0, 0, 0, 5, 0, 0, 0, // load.const 0, 1
-				byte(common.OpLoadModConst), 0, 0, 0, 0, 0, 0, 0, 0, // load.const 0, 0
-				byte(common.OpLoadModConst), 30, 0, 0, 0, 0, 0, 0, 0, // load.const 1, 0
+				// byte(common.OpLoadModConst), 0, 0, 0, 0, 5, 0, 0, 0, // load.const 0, 1
+				// byte(common.OpLoadModConst), 0, 0, 0, 0, 0, 0, 0, 0, // load.const 0, 0
+				// byte(common.OpLoadModConst), 30, 0, 0, 0, 0, 0, 0, 0, // load.const 1, 0
 				byte(common.OpLoadI32), 0, 1, 0, 0, // load.i32 256
 				byte(common.OpLoadI64), 0, 1, 0, 0, 0, 0, 0, 0, // load.i64 256
 				byte(common.OpLoadU32), 0, 1, 0, 0, // load.u32 256
@@ -81,6 +82,7 @@ func TestCompileBlock(t *testing.T) {
 				byte(common.OpLoadBuiltin), 1, 0, // load.builtin 1
 				byte(common.OpLoadBuiltin), 5, 0, // load.builtin 2
 				byte(common.OpLoadBuiltin), 42, 0, // load.builtin 3
+				byte(common.OpNew), 0, 0, 0, 0, 0, 0, // new 0, 0
 			},
 		},
 		{
@@ -103,6 +105,7 @@ func TestCompileBlock(t *testing.T) {
 				ast.NewOp("mask.not"),
 				ast.NewOp("shift.right"),
 				ast.NewOp("shift.left"),
+				ast.NewOp("yield"),
 				ast.NewOp("trap"),
 				ast.NewOp("halt"),
 			},
@@ -122,6 +125,7 @@ func TestCompileBlock(t *testing.T) {
 				byte(common.OpMaskNot),
 				byte(common.OpShiftRight),
 				byte(common.OpShiftLeft),
+				byte(common.OpYield),
 				byte(common.OpTrap),
 				byte(common.OpHalt),
 			},

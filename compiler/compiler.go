@@ -83,7 +83,7 @@ func (c *IRCompiler) Compile() error {
 			return fmt.Errorf("failed to write link: %w", err)
 		}
 
-		if _, err := c.module.Links.Write(common.Link(stmt.Mod.String), idx); err != nil {
+		if _, err := c.module.Links.Set(idx, common.NewLink(stmt.Mod.String)); err != nil {
 			return fmt.Errorf("failed to write link: %w", err)
 		}
 
@@ -91,7 +91,7 @@ func (c *IRCompiler) Compile() error {
 
 		// Archive may already have the link written
 		if !c.archive.Modules.Has(hash) {
-			if _, err := c.archive.Modules.Write(link.module, hash); err != nil {
+			if _, err := c.archive.Modules.Set(hash, link.module); err != nil {
 				return fmt.Errorf("failed to write link: %w", err)
 			}
 		}
@@ -104,7 +104,7 @@ func (c *IRCompiler) Compile() error {
 		idx := stmt.Index.Int
 		// TODO: Create the actual type
 		typ := common.NewType()
-		if _, err := c.module.Types.Write(typ, idx); err != nil {
+		if _, err := c.module.Types.Set(idx, typ); err != nil {
 			return fmt.Errorf("failed to write type: %w", err)
 		}
 	}
@@ -115,7 +115,7 @@ func (c *IRCompiler) Compile() error {
 		if err != nil {
 			return fmt.Errorf("failed to write const: %w", err)
 		}
-		if _, err := c.module.Consts.Write(constant, idx); err != nil {
+		if _, err := c.module.Consts.Set(idx, constant); err != nil {
 			return fmt.Errorf("failed to write const: %w", err)
 		}
 	}
@@ -124,22 +124,14 @@ func (c *IRCompiler) Compile() error {
 }
 
 func (c *IRCompiler) WriteTo(w io.Writer) (int64, error) {
-	entrymod, err := c.archive.Modules.Write(c.module, POOL_WRITE_LIMIT)
+	entrymod, err := c.archive.Modules.Set(POOL_WRITE_LIMIT, c.module)
 	if err != nil {
 		return 0, err
 	}
-	entryconst := c.module.Consts.Get(POOL_WRITE_LIMIT)
-
+	entryconst := c.module.Consts.Lookup(POOL_WRITE_LIMIT)
 	c.archive.SetEntry(entrymod, entryconst)
-	encoded, err := c.archive.MarshalBinary()
-	if err != nil {
-		return 0, err
-	}
-	n, err := w.Write(encoded)
-	if err != nil {
-		return 0, err
-	}
-	return int64(n), nil
+
+	return c.archive.WriteTo(w)
 }
 
 func readOp(stmt *ast.Op) (common.OpCode, []int, error) {
@@ -181,7 +173,7 @@ func (c *IRCompiler) CompileBlock(ops []ast.OpStmt) (common.Instructions, error)
 				if !c.module.Consts.Has(idx) {
 					return nil, fmt.Errorf("undefined const index %d", idx)
 				}
-				operands[0] = c.module.Consts.Get(idx)
+				operands[0] = c.module.Consts.Lookup(idx)
 			case common.OpLoadModConst:
 				modidx := operands[0]
 				idx := operands[1]
@@ -191,7 +183,7 @@ func (c *IRCompiler) CompileBlock(ops []ast.OpStmt) (common.Instructions, error)
 					return nil, fmt.Errorf("undefined mod index %d", modidx)
 				}
 
-				if err := c.module.Links.Read(link, c.module.Links.Get(modidx)); err != nil {
+				if err := c.module.Links.Get(c.module.Links.Lookup(modidx), link); err != nil {
 					return nil, err
 				}
 
@@ -204,8 +196,8 @@ func (c *IRCompiler) CompileBlock(ops []ast.OpStmt) (common.Instructions, error)
 				if !mod.Consts.Has(idx) {
 					return nil, fmt.Errorf("undefined const index %d in mod %d", idx, modidx)
 				}
-				operands[0] = c.archive.Modules.Get(hash)
-				operands[1] = mod.Consts.Get(idx)
+				operands[0] = c.archive.Modules.Lookup(hash)
+				operands[1] = mod.Consts.Lookup(idx)
 			case common.OpLoadBuiltin:
 				idx := operands[0]
 

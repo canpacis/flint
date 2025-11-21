@@ -2,21 +2,43 @@ package common
 
 import (
 	"encoding/binary"
+	"io"
 )
 
 type Link string
 
-func (l Link) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, len(l)+2)
-	binary.LittleEndian.PutUint16(buf[0:2], uint16(len(l)))
-	copy(buf[2:], l)
-	return buf, nil
+func (l *Link) WriteTo(w io.Writer) (n int64, err error) {
+	if err := binary.Write(w, binary.LittleEndian, uint16(len(*l))); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if m, err := w.Write([]byte(*l)); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+	return
 }
 
-func (l *Link) UnmarshalBinary(data []byte) error {
-	length := int(binary.LittleEndian.Uint16(data[0:2]))
-	*l = Link(data[2 : 2+length])
-	return nil
+func (l *Link) ReadFrom(r io.Reader) (n int64, err error) {
+	var length uint16
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return n, err
+	}
+	buf := make([]byte, length)
+	if m, err := r.Read(buf); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+	*l = Link(buf)
+	return
+}
+
+func NewLink(name string) *Link {
+	link := Link(name)
+	return &link
 }
 
 type Module struct {
@@ -31,64 +53,104 @@ func (m *Module) headerSize() int {
 	return 4 /* version */ + 4 /* mod length */ + 2 /* name length */ + len(m.Name)
 }
 
-func (m *Module) putHeader(b []byte) (n int) {
-	binary.LittleEndian.PutUint32(b[n:], uint32(m.Version))
-	n += 4
-	binary.LittleEndian.PutUint32(b[n:], uint32(m.Len()))
-	n += 4
-	length := len(m.Name)
-	binary.LittleEndian.PutUint16(b[n:], uint16(length))
-	n += 2
-	n += copy(b[n:], []byte(m.Name))
+func (mod *Module) writeHeader(w io.Writer) (n int64, err error) {
+	if err := binary.Write(w, binary.LittleEndian, uint32(mod.Version)); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint32(mod.Len())); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if err := binary.Write(w, binary.LittleEndian, uint32(len(mod.Name))); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if m, err := w.Write([]byte(mod.Name)); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
 	return
 }
 
-func (m *Module) readHeader(b []byte) (n int) {
-	m.Version = Version(binary.LittleEndian.Uint32(b[n:]))
-	n += 4
-	n += 4                                           // skip module length
-	length := int(binary.LittleEndian.Uint16(b[n:])) // name length
-	n += 2
-	name := make([]byte, length)
-	n += copy(name, b[n:n+length])
-	m.Name = string(name)
+func (mod *Module) readHeader(r io.Reader) (n int64, err error) {
+	if err := binary.Read(r, binary.LittleEndian, &mod.Version); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	var length uint32
+	// Skip mod length
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+	buf := make([]byte, length)
+	if m, err := r.Read(buf); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+		mod.Name = string(buf)
+	}
 	return
 }
 
-func (m *Module) putPool(b []byte, pool *Pool) int {
-	off := 0
-	binary.LittleEndian.PutUint32(b[off:], uint32(pool.Len()))
-	off += 4
-	off += copy(b[off:], pool.Bytes())
-	return off
+func (mod *Module) WriteTo(w io.Writer) (n int64, err error) {
+	if m, err := mod.writeHeader(w); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	if m, err := mod.Links.WriteTo(w); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	if m, err := mod.Types.WriteTo(w); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	if m, err := mod.Consts.WriteTo(w); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	return
 }
 
-func (m *Module) readPool(b []byte, pool *Pool) int {
-	off := 0
-	length := int(binary.LittleEndian.Uint32(b[off:]))
-	off += 4
-	off += copy(pool.data[:], b[off:off+length])
-	pool.pointer = length
-	return off
-}
-
-func (m *Module) MarshalBinary() ([]byte, error) {
-	buf := make([]byte, m.Len())
-	off := 0
-	off += m.putHeader(buf[off:])
-	off += m.putPool(buf[off:], m.Links)
-	off += m.putPool(buf[off:], m.Types)
-	off += m.putPool(buf[off:], m.Consts)
-	return buf, nil
-}
-
-func (m *Module) UnmarshalBinary(data []byte) error {
-	off := 0
-	off += m.readHeader(data[off:])
-	off += m.readPool(data[off:], m.Links)
-	off += m.readPool(data[off:], m.Types)
-	off += m.readPool(data[off:], m.Consts)
-	return nil
+func (mod *Module) ReadFrom(r io.Reader) (n int64, err error) {
+	if m, err := mod.readHeader(r); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	if m, err := mod.Links.ReadFrom(r); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	if m, err := mod.Types.ReadFrom(r); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	if m, err := mod.Consts.ReadFrom(r); err != nil {
+		return n, err
+	} else {
+		n += m
+	}
+	return
 }
 
 func (m *Module) Len() int {

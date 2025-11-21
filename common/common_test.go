@@ -1,45 +1,13 @@
 package common_test
 
 import (
+	"bytes"
+	"io"
 	"testing"
 
 	"github.com/canpacis/flint/common"
 	"github.com/stretchr/testify/assert"
 )
-
-func TestArchive(t *testing.T) {
-	// assert := assert.New(t)
-
-	// type ArchiveTest struct {
-	// 	Mod   int
-	// 	Const int
-	// }
-
-	// version := common.NewVersion(0, 0, 1)
-	// mods := []*common.Module{
-	// 	common.NewModule("main", version),
-	// 	common.NewModule("io", version),
-	// 	common.NewModule("std", version),
-	// 	common.NewModule("strings", version),
-	// }
-
-	// tests := []ArchiveTest{{0, 0}, {1, 256}, {2, 1024}, {3, 0}}
-
-	// for i, entry := range tests {
-	// 	archive := common.NewArchive(mods, common.NewEntryPoint(entry.Mod, entry.Const))
-	// 	encoded, err := archive.MarshalBinary()
-	// 	assert.NoError(err, "Encoding: Test case %d", i)
-
-	// 	decoded := common.NewArchive(nil, 0)
-	// 	assert.NoError(decoded.UnmarshalBinary(encoded), "Decoding: Test case %d", i)
-	// 	assert.Equalf(entry.Mod, decoded.EntryPoint.Module(), "Mod: Test case %d", i)
-	// 	assert.Equalf(entry.Const, decoded.EntryPoint.Const(), "Const: Test case %d", i)
-	// 	assert.Equalf(len(archive.Modules), len(decoded.Modules), "Length: Test case %d", i)
-	// 	for j, mod := range archive.Modules {
-	// 		assert.Equalf(mod.Len(), decoded.Modules[j].Len(), "Mod Length: Test case %d - %d", i, j)
-	// 	}
-	// }
-}
 
 func TestOpCodes(t *testing.T) {
 	assert := assert.New(t)
@@ -138,13 +106,14 @@ func TestConstants(t *testing.T) {
 		{common.NewConst(common.I32Const, int32(256)), []byte{byte(common.I32Const), 0, 1, 0, 0}},
 		{common.NewConst(common.I64Const, int64(256)), []byte{byte(common.I64Const), 0, 1, 0, 0, 0, 0, 0, 0}},
 		{common.NewConst(common.RefConst, uint32(256)), []byte{byte(common.RefConst), 0, 1, 0, 0}},
-		{common.NewConst(common.FnConst, common.NewCompiledFn("A", 2, common.NewOp(common.OpNoop))), []byte{byte(common.FnConst), 14, 0, 0, 0, 1, 0, 0, 0, 65, 2, 0, 0, 0, 1, 0, 0, 0, 0}},
+		{common.NewConst(common.FnConst, common.NewCompiledFn("A", 2, common.NewOp(common.OpNoop))), []byte{byte(common.FnConst), 1, 0, 0, 0, 65, 2, 0, 0, 0, 1, 0, 0, 0, 0}},
 	}
 
 	for i, test := range encodeTests {
-		encoded, err := test.Input.MarshalBinary()
+		buf := new(bytes.Buffer)
+		_, err := test.Input.WriteTo(buf)
 		assert.NoError(err, "Test case %d", i)
-		assert.Equalf(test.Expected, encoded, "Test case %d", i)
+		assert.Equalf(test.Expected, buf.Bytes(), "Test case %d", i)
 	}
 
 	type ConstantDecodeTest struct {
@@ -171,7 +140,8 @@ func TestConstants(t *testing.T) {
 
 	for i, test := range decodeTests {
 		constant := new(common.Const)
-		assert.NoError(constant.UnmarshalBinary(test.Input), "Test case %d", i)
+		_, err := constant.ReadFrom(bytes.NewBuffer(test.Input))
+		assert.NoError(err, "Test case %d", i)
 		assert.Equalf(test.ExpectedType, constant.Type, "Test case %d", i)
 		assert.Equalf(test.ExpectedValue, constant.Value, "Test case %d", i)
 	}
@@ -198,15 +168,15 @@ func TestModules(t *testing.T) {
 			std := common.NewModule("std", common.NewVersion(0, 0, 1))
 
 			mod := common.NewModule("main", common.NewVersion(0, 0, 1))
-			mod.Links.Write(io, 0)
-			mod.Links.Write(std, 1)
+			mod.Links.Set(0, io)
+			mod.Links.Set(1, std)
 			return mod
 		}},
 		{func() *common.Module {
 			mod := common.NewModule("main", common.NewVersion(0, 0, 1))
 
-			mod.Consts.Write(common.NewConst(common.StrConst, "Hello, World!"), 0)
-			mod.Consts.Write(common.NewConst(common.I64Const, int64(0)), 1)
+			mod.Consts.Set(0, common.NewConst(common.StrConst, "Hello, World!"))
+			mod.Consts.Set(1, common.NewConst(common.I64Const, int64(0)))
 			return mod
 		}},
 		{func() *common.Module {
@@ -214,22 +184,24 @@ func TestModules(t *testing.T) {
 			std := common.NewModule("std", common.NewVersion(0, 0, 1))
 			mod := common.NewModule("main", common.NewVersion(0, 0, 1))
 
-			mod.Links.Write(io, 0)
-			mod.Links.Write(std, 1)
+			mod.Links.Set(0, io)
+			mod.Links.Set(1, std)
 
-			mod.Consts.Write(common.NewConst(common.StrConst, "Hello, World!"), 0)
-			mod.Consts.Write(common.NewConst(common.I64Const, int64(0)), 1)
+			mod.Consts.Set(0, common.NewConst(common.StrConst, "Hello, World!"))
+			mod.Consts.Set(1, common.NewConst(common.I64Const, int64(0)))
 			return mod
 		}},
 	}
 
 	for i, test := range tests {
+		buf := new(bytes.Buffer)
 		mod := test.Input()
-		encoded, err := mod.MarshalBinary()
+		_, err := mod.WriteTo(buf)
 		assert.NoError(err, "Test case %d", i)
 
 		decoded := common.NewModule("", 0)
-		assert.NoError(decoded.UnmarshalBinary(encoded), "Test case %d", i)
+		_, err = decoded.ReadFrom(buf)
+		assert.NoError(err, "Test case %d", i)
 
 		assert.Equalf(mod.Name, decoded.Name, "Name: Test case %d", i)
 		assert.Equalf(mod.Version, decoded.Version, "Version: Test case %d", i)
@@ -262,6 +234,43 @@ func TestVersion(t *testing.T) {
 		version := test.Version.String()
 		if version != test.Expected {
 			assert.Equalf(test.Expected, version, "Test case %d", i)
+		}
+	}
+}
+
+func TestPool(t *testing.T) {
+	assert := assert.New(t)
+
+	type PoolTest struct {
+		Key             int
+		Value           io.WriterTo
+		Empty           io.ReaderFrom
+		ExpectedPointer int
+		ExpectedError   error
+	}
+
+	tests := []PoolTest{
+		{0, common.NewConst(common.U8Const, uint8(255)), &common.Const{}, 0, nil},           // Size 2
+		{1, common.NewConst(common.I32Const, int32(-255)), &common.Const{}, 2, nil},         // Size 5
+		{2, common.NewConst(common.F64Const, float64(3.14159265)), &common.Const{}, 7, nil}, // Size 9
+		{3, common.NewConst(common.StrConst, "Hello, World\n"), &common.Const{}, 16, nil},   // Size 18
+		{4, common.NewLink("io"), common.NewLink(""), 34, nil},                              // Size 4
+		{5, common.NewLink("std"), common.NewLink(""), 38, nil},                             // Size 5
+		{0, nil, nil, 0, common.ErrPoolKeyExists},
+	}
+
+	pool := common.NewPool()
+
+	for i, test := range tests {
+		pointer, err := pool.Set(test.Key, test.Value)
+		if test.ExpectedError != nil {
+			assert.ErrorIsf(err, test.ExpectedError, "Test case %d", i)
+		} else {
+			assert.NoErrorf(err, "Test case %d", i)
+			assert.Equalf(test.ExpectedPointer, pointer, "Test case %d", i)
+			assert.Equalf(test.ExpectedPointer, pool.Lookup(test.Key), "Test case %d", i)
+			assert.NoErrorf(pool.Get(pool.Lookup(test.Key), test.Empty), "Test case %d", i)
+			assert.Equalf(test.Value, test.Empty, "Test case %d", i)
 		}
 	}
 }

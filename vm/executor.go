@@ -196,7 +196,7 @@ func (e *Executor) ExecuteLoad(code common.OpCode, operands []int) error {
 			return err
 		}
 		constant := new(common.Const)
-		if err := mod.Consts.Read(constant, operands[0]); err != nil {
+		if err := mod.Consts.Get(operands[0], constant); err != nil {
 			return err
 		}
 		return e.stack.Push(constant)
@@ -206,7 +206,7 @@ func (e *Executor) ExecuteLoad(code common.OpCode, operands []int) error {
 			return err
 		}
 		constant := new(common.Const)
-		if err := mod.Consts.Read(constant, operands[1]); err != nil {
+		if err := mod.Consts.Get(operands[1], constant); err != nil {
 			return err
 		}
 		return e.stack.Push(constant)
@@ -361,7 +361,7 @@ func (e *Executor) LoadLink(idx int) (*common.Module, error) {
 		return cached, nil
 	}
 	mod := common.NewModule("", 0)
-	if err := e.vm.archive.Modules.Read(mod, idx); err != nil {
+	if err := e.vm.archive.Modules.Get(idx, mod); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrFailedToLoadLink, err)
 	}
 

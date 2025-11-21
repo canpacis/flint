@@ -1,59 +1,110 @@
 package common
 
 import (
-	"encoding"
+	"encoding/binary"
+	"errors"
 	"fmt"
+	"io"
 )
 
 const POOL_SIZE = 4096
 
+var ErrPoolKeyExists = errors.New("key already exists")
+
 type Pool struct {
 	data     [POOL_SIZE]byte
 	indicies map[int]int
-	pointer  int
+	wp       int
+	rp       int
 }
 
-func (p *Pool) Write(m encoding.BinaryMarshaler, idx int) (int, error) {
-	if p.Has(idx) {
-		return 0, fmt.Errorf("failed to add to pool: index %d already exists", idx)
+func (p *Pool) Write(b []byte) (int, error) {
+	if len(b)+p.wp >= POOL_SIZE {
+		return 0, fmt.Errorf("pool overflow")
 	}
-	pointer := p.pointer
-	data, err := m.MarshalBinary()
-	if err != nil {
-		return 0, fmt.Errorf("failed to add to pool: %w", err)
+	n := copy(p.data[p.wp:], b)
+	p.wp += n
+	return n, nil
+}
+
+func (p *Pool) Read(b []byte) (int, error) {
+	if p.rp >= POOL_SIZE {
+		return 0, io.EOF
 	}
-	n := copy(p.data[p.pointer:], data)
-	p.pointer += n
-	p.indicies[idx] = pointer
+	n := copy(b, p.data[p.rp:])
+	p.rp += n
+	return n, nil
+}
+
+func (p *Pool) Set(key int, value io.WriterTo) (int, error) {
+	if p.Has(key) {
+		return 0, fmt.Errorf("%w: %d", ErrPoolKeyExists, key)
+	}
+	pointer := p.wp
+	if _, err := value.WriteTo(p); err != nil {
+		return 0, err
+	}
+	p.indicies[key] = pointer
 	return pointer, nil
 }
 
-func (p *Pool) Has(idx int) bool {
-	_, ok := p.indicies[idx]
+func (p *Pool) Get(n int, value io.ReaderFrom) error {
+	p.rp = n
+	_, err := value.ReadFrom(p)
+	return err
+}
+
+func (p *Pool) Has(key int) bool {
+	_, ok := p.indicies[key]
 	return ok
 }
 
-func (p *Pool) Get(idx int) int {
-	pointer, ok := p.indicies[idx]
+func (p *Pool) Lookup(key int) int {
+	pointer, ok := p.indicies[key]
 	if !ok {
 		return -1
 	}
 	return pointer
 }
 
-func (p *Pool) Read(u encoding.BinaryUnmarshaler, pointer int) error {
-	if err := u.UnmarshalBinary(p.data[pointer:]); err != nil {
-		return fmt.Errorf("failed to read pool value: %w", err)
-	}
-	return nil
-}
-
 func (p *Pool) Len() int {
-	return p.pointer
+	return p.wp
 }
 
 func (p *Pool) Bytes() []byte {
-	return p.data[:p.pointer]
+	return p.data[:p.wp]
+}
+
+func (p *Pool) WriteTo(w io.Writer) (n int64, err error) {
+	if err := binary.Write(w, binary.LittleEndian, uint32(p.Len())); err != nil {
+		return n, err
+	} else {
+		n += 4
+	}
+
+	if m, err := w.Write(p.Bytes()); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+	return
+}
+
+func (p *Pool) ReadFrom(r io.Reader) (n int64, err error) {
+	var length uint32
+	if err := binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return n, err
+	} else {
+		n += 4
+		p.wp = int(length)
+	}
+
+	if m, err := r.Read(p.data[:length]); err != nil {
+		return n, err
+	} else {
+		n += int64(m)
+	}
+	return
 }
 
 func NewPool() *Pool {
