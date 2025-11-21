@@ -35,11 +35,17 @@ func TestOpCodes(t *testing.T) {
 		{common.OpSwap, []int{}, []byte{byte(common.OpSwap)}},
 		{common.OpCall, []int{256}, []byte{byte(common.OpCall), 0, 1}},
 		{common.OpReturn, []int{}, []byte{byte(common.OpReturn)}},
+		{common.OpAddU64, []int{}, []byte{byte(common.OpAddU64)}},
 		{common.OpAddI64, []int{}, []byte{byte(common.OpAddI64)}},
+		{common.OpSubU64, []int{}, []byte{byte(common.OpSubU64)}},
 		{common.OpSubI64, []int{}, []byte{byte(common.OpSubI64)}},
+		{common.OpMulU64, []int{}, []byte{byte(common.OpMulU64)}},
 		{common.OpMulI64, []int{}, []byte{byte(common.OpMulI64)}},
+		{common.OpDivU64, []int{}, []byte{byte(common.OpDivU64)}},
 		{common.OpDivI64, []int{}, []byte{byte(common.OpDivI64)}},
+		{common.OpDivF64, []int{}, []byte{byte(common.OpDivF64)}},
 		{common.OpModI64, []int{}, []byte{byte(common.OpModI64)}},
+		{common.OpModU64, []int{}, []byte{byte(common.OpModU64)}},
 		{common.OpAnd, []int{}, []byte{byte(common.OpAnd)}},
 		{common.OpOr, []int{}, []byte{byte(common.OpOr)}},
 		{common.OpMaskAnd, []int{}, []byte{byte(common.OpMaskAnd)}},
@@ -205,7 +211,7 @@ func TestModules(t *testing.T) {
 
 		assert.Equalf(mod.Name, decoded.Name, "Name: Test case %d", i)
 		assert.Equalf(mod.Version, decoded.Version, "Version: Test case %d", i)
-		// assert.Equalf(mod.Links.Bytes(), decoded.Links.Bytes(), "Links: Test case %d", i)
+		assert.Equalf(mod.Links.Bytes(), decoded.Links.Bytes(), "Links: Test case %d", i)
 		assert.Equalf(mod.Types.Bytes(), decoded.Types.Bytes(), "Types: Test case %d", i)
 		assert.Equalf(mod.Consts.Bytes(), decoded.Consts.Bytes(), "Consts: Test case %d", i)
 	}

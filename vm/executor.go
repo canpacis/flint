@@ -246,10 +246,14 @@ func (e *Executor) ExecuteBinary(code common.OpCode, operands []int) error {
 		common.OpMaskAnd, common.OpMaskOr, common.OpShiftRight,
 		common.OpShiftLeft,
 	}
+	u64 := []common.OpCode{common.OpAddU64, common.OpSubU64, common.OpMulU64,
+		common.OpDivU64, common.OpModU64,
+	}
+	f64 := []common.OpCode{common.OpDivF64}
 	bl := []common.OpCode{common.OpAnd, common.OpOr}
 
 	if slices.Contains(i64, code) {
-		left, right, err := Binary(e.stack, GetInt64)
+		left, right, err := Binary(e.stack, GetI64)
 		if err != nil {
 			return err
 		}
@@ -279,6 +283,47 @@ func (e *Executor) ExecuteBinary(code common.OpCode, operands []int) error {
 			return e.stack.Push(common.NewConst(common.I64Const, left>>right))
 		case common.OpShiftLeft:
 			return e.stack.Push(common.NewConst(common.I64Const, left<<right))
+		default:
+			return fmt.Errorf("%w: %s", ErrUnknownOpCode, code)
+		}
+	} else if slices.Contains(u64, code) {
+		left, right, err := Binary(e.stack, GetU64)
+		if err != nil {
+			return err
+		}
+
+		switch code {
+		case common.OpAddU64:
+			return e.stack.Push(common.NewConst(common.U64Const, left+right))
+		case common.OpSubU64:
+			return e.stack.Push(common.NewConst(common.U64Const, left-right))
+		case common.OpMulU64:
+			return e.stack.Push(common.NewConst(common.U64Const, left*right))
+		case common.OpDivU64:
+			if right == 0 {
+				return ErrDivideByZero
+			}
+			return e.stack.Push(common.NewConst(common.U64Const, left/right))
+		case common.OpModU64:
+			if right == 0 {
+				return ErrDivideByZero
+			}
+			return e.stack.Push(common.NewConst(common.U64Const, left%right))
+		default:
+			return fmt.Errorf("%w: %s", ErrUnknownOpCode, code)
+		}
+	} else if slices.Contains(f64, code) {
+		left, right, err := Binary(e.stack, GetF64)
+		if err != nil {
+			return err
+		}
+
+		switch code {
+		case common.OpDivF64:
+			if right == 0 {
+				return ErrDivideByZero
+			}
+			return e.stack.Push(common.NewConst(common.F64Const, left/right))
 		default:
 			return fmt.Errorf("%w: %s", ErrUnknownOpCode, code)
 		}
@@ -333,7 +378,7 @@ func (e *Executor) ExecuteMutation(code common.OpCode, operands []int) error {
 		if err != nil {
 			return err
 		}
-		n, err := GetInt64(constant)
+		n, err := GetI64(constant)
 		if err != nil {
 			return err
 		}

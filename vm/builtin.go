@@ -102,11 +102,11 @@ func CreateSyscall(processor Processor) *common.Const {
 	fn := NewBuiltinFn("syscall", 3, common.I64Const, func(args ...*common.Const) (*common.Const, error) {
 		zero := common.NewConst(common.I64Const, 0)
 
-		op, err := GetInt64(args[0])
+		op, err := GetI64(args[0])
 		if err != nil {
 			return zero, err
 		}
-		fd, err := GetInt64(args[1])
+		fd, err := GetI64(args[1])
 		if err != nil {
 			return zero, err
 		}

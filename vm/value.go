@@ -25,10 +25,26 @@ func GetData(c *common.Const) ([]byte, error) {
 	return v, nil
 }
 
-func GetInt64(c *common.Const) (int64, error) {
+func GetI64(c *common.Const) (int64, error) {
 	n, ok := c.Value.(int64)
 	if !ok || c.Type != common.I64Const {
 		return 0, fmt.Errorf("%w: expected i64 found %s", ErrConstTypeInvalid, c.Type)
+	}
+	return n, nil
+}
+
+func GetU64(c *common.Const) (uint64, error) {
+	n, ok := c.Value.(uint64)
+	if !ok || c.Type != common.U64Const {
+		return 0, fmt.Errorf("%w: expected u64 found %s", ErrConstTypeInvalid, c.Type)
+	}
+	return n, nil
+}
+
+func GetF64(c *common.Const) (float64, error) {
+	n, ok := c.Value.(float64)
+	if !ok || c.Type != common.F64Const {
+		return 0, fmt.Errorf("%w: expected f64 found %s", ErrConstTypeInvalid, c.Type)
 	}
 	return n, nil
 }

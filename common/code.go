@@ -27,10 +27,16 @@ const (
 	OpReturnValue
 
 	// Arithmetic
+	OpAddU64
 	OpAddI64
+	OpSubU64
 	OpSubI64
+	OpMulU64
 	OpMulI64
+	OpDivU64
 	OpDivI64
+	OpDivF64
+	OpModU64
 	OpModI64
 
 	// Logic
@@ -95,10 +101,16 @@ var ops = map[OpCode]OpDefinition{
 	OpCall:        {"call", []int{2}},
 	OpReturn:      {"return", []int{}},
 	OpReturnValue: {"return.value", []int{}},
+	OpAddU64:      {"add.u64", []int{}},
 	OpAddI64:      {"add.i64", []int{}},
+	OpSubU64:      {"sub.u64", []int{}},
 	OpSubI64:      {"sub.i64", []int{}},
+	OpMulU64:      {"mul.u64", []int{}},
 	OpMulI64:      {"mul.i64", []int{}},
+	OpDivU64:      {"div.u64", []int{}},
 	OpDivI64:      {"div.i64", []int{}},
+	OpDivF64:      {"div.f64", []int{}},
+	OpModU64:      {"mod.u64", []int{}},
 	OpModI64:      {"mod.i64", []int{}},
 	OpAnd:         {"and", []int{}},
 	OpOr:          {"or", []int{}},

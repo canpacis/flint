@@ -173,6 +173,42 @@ func TestBinaryOps(t *testing.T) {
 			common.NewConst(common.I64Const, int64(37)), common.NewConst(common.I64Const, int64(0)),
 			common.OpModI64, common.InvalidConstType, 0, vm.ErrDivideByZero,
 		},
+		{
+			common.NewConst(common.I64Const, int64(5)), common.NewConst(common.I64Const, int64(7)),
+			common.OpAddU64, common.InvalidConstType, 0, vm.ErrConstTypeInvalid,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(5)), common.NewConst(common.U64Const, uint64(7)),
+			common.OpAddU64, common.U64Const, uint64(12), nil,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(5)), common.NewConst(common.U64Const, uint64(7)),
+			common.OpMulU64, common.U64Const, uint64(35), nil,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(35)), common.NewConst(common.U64Const, uint64(7)),
+			common.OpDivU64, common.U64Const, uint64(5), nil,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(35)), common.NewConst(common.U64Const, uint64(0)),
+			common.OpDivU64, common.InvalidConstType, 0, vm.ErrDivideByZero,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(37)), common.NewConst(common.U64Const, uint64(7)),
+			common.OpModU64, common.U64Const, uint64(2), nil,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(37)), common.NewConst(common.U64Const, uint64(0)),
+			common.OpModU64, common.InvalidConstType, 0, vm.ErrDivideByZero,
+		},
+		{
+			common.NewConst(common.U64Const, uint64(5)), common.NewConst(common.U64Const, uint64(2)),
+			common.OpDivF64, common.InvalidConstType, 0, vm.ErrConstTypeInvalid,
+		},
+		{
+			common.NewConst(common.F64Const, float64(5)), common.NewConst(common.F64Const, float64(2)),
+			common.OpDivF64, common.F64Const, 2.5, nil,
+		},
 	}
 
 	machine := vm.NewVM()
