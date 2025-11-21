@@ -89,7 +89,7 @@ func Link(idx int, mod string) *LinkStmt {
 type TypeField struct {
 	loc  Location
 	Name *StringLiteral
-	Src  *IntLiteral // used in mod imports
+	Src  *IntLiteral // used in mod imports, indicates builtin if < 0
 	Type *IntLiteral
 }
 

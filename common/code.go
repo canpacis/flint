@@ -50,6 +50,7 @@ const (
 	OpJmpn
 	OpJmpp
 
+	OpNew
 	OpYield
 	OpTrap
 	OpHalt
@@ -112,6 +113,7 @@ var ops = map[OpCode]OpDefinition{
 	OpJmpt:        {"jmpt", []int{2}},
 	OpJmpn:        {"jmpn", []int{2}},
 	OpJmpp:        {"jmpp", []int{2}},
+	OpNew:         {"yield", []int{4, 2}},
 	OpYield:       {"yield", []int{}},
 	OpTrap:        {"trap", []int{}},
 	OpHalt:        {"halt", []int{}},

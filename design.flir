@@ -34,7 +34,7 @@ fn main 255 0 ; define the main fn with 0 local, put it in the const pool with i
 end
 
 type User 0     ; define a type with id 0
-  age.builtin 0 ; define field with a builtin type id
+  age builtin 0 ; define field with a builtin type id
   profession 0  ; define field with a defined type id
-  name.mod 1 0  ; define field with type ref from another module (std.String)
+  name mod 1 0  ; define field with type ref from another module (std.String)
 end
