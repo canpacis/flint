@@ -76,6 +76,8 @@ func (e *Executor) Execute(code common.OpCode, operands []int) error {
 		common.OpModI64, common.OpMaskAnd, common.OpMaskOr, common.OpShiftRight,
 		common.OpShiftLeft, common.OpAnd, common.OpOr:
 		return e.ExecuteBinary(code, operands)
+	case common.OpAlloc, common.OpRealloc, common.OpFree, common.OpNew, common.OpNewMod, common.OpNewBuiltin:
+		return e.ExecuteHeap(code, operands)
 	case common.OpCall:
 		return e.ExecuteCall(code, operands)
 	case common.OpReturn, common.OpReturnValue:
@@ -100,6 +102,20 @@ func (e *Executor) Execute(code common.OpCode, operands []int) error {
 	case common.OpHalt:
 		e.vm.halt()
 		return nil
+	default:
+		return fmt.Errorf("%w: %s", ErrUnknownOpCode, code)
+	}
+}
+
+func (e *Executor) ExecuteHeap(code common.OpCode, operands []int) error {
+	switch code {
+	case common.OpAlloc:
+		size := operands[0]
+		handle, err := e.vm.heap.Alloc(size)
+		if err != nil {
+			return err
+		}
+		return e.stack.Push(common.NewConst(common.RefConst, uint32(handle)))
 	default:
 		return fmt.Errorf("%w: %s", ErrUnknownOpCode, code)
 	}

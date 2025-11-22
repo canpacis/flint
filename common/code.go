@@ -20,6 +20,12 @@ const (
 	OpLoadU64
 	OpSetLocal
 	// OpSetGlobal
+	OpAlloc
+	OpRealloc
+	OpFree
+	OpNew
+	OpNewMod
+	OpNewBuiltin
 	OpPop
 	OpSwap
 	OpCall
@@ -56,7 +62,6 @@ const (
 	OpJmpn
 	OpJmpp
 
-	OpNew
 	OpYield
 	OpTrap
 	OpHalt
@@ -96,6 +101,12 @@ var ops = map[OpCode]OpDefinition{
 	OpLoadU64:     {"load.u64", []int{8}},
 	OpSetLocal:    {"set.local", []int{4}},
 	// OpSetGlobal:    {"set.global", []int{4}},
+	OpAlloc:       {"alloc", []int{4}},
+	OpRealloc:     {"realloc", []int{8, 4}},
+	OpFree:        {"free", []int{8}},
+	OpNew:         {"new", []int{4}},
+	OpNewMod:      {"new.mod", []int{4, 4}},
+	OpNewBuiltin:  {"new.builtin", []int{2}},
 	OpPop:         {"pop", []int{}},
 	OpSwap:        {"swap", []int{}},
 	OpCall:        {"call", []int{2}},
@@ -125,7 +136,6 @@ var ops = map[OpCode]OpDefinition{
 	OpJmpt:        {"jmpt", []int{2}},
 	OpJmpn:        {"jmpn", []int{2}},
 	OpJmpp:        {"jmpp", []int{2}},
-	OpNew:         {"new", []int{4, 2}},
 	OpYield:       {"yield", []int{}},
 	OpTrap:        {"trap", []int{}},
 	OpHalt:        {"halt", []int{}},

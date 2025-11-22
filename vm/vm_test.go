@@ -2,6 +2,7 @@ package vm_test
 
 import (
 	"bytes"
+	"math"
 	"testing"
 
 	"github.com/canpacis/flint/common"
@@ -74,6 +75,103 @@ func TestFrame(t *testing.T) {
 			assert.NoError(err, "Error: Test case %d", i)
 			assert.Equalf(test.ExpectedOpCode, code, "OpCode: Test case %d", i)
 			assert.Equalf(test.ExpectedOperands, operands, "Operands: Test case %d", i)
+		}
+	}
+}
+
+func TestHeap(t *testing.T) {
+	assert := assert.New(t)
+
+	type HeapAllocTest struct {
+		Size           int
+		ExpectedHandle vm.HeapHandle
+		ExpectedError  error
+	}
+
+	allocTests := []HeapAllocTest{
+		{10, 1, nil},                // Size 10
+		{20, 2, nil},                // Size 20
+		{5, 3, nil},                 // Size 5
+		{512, 0, vm.ErrOutOfMemory}, // Size 10
+	}
+
+	heap := vm.NewHeap(512)
+	for i, test := range allocTests {
+		handle, err := heap.Alloc(test.Size)
+		if test.ExpectedError != nil {
+			assert.ErrorIsf(err, test.ExpectedError, "Test case %d", i)
+		} else {
+			assert.NoErrorf(err, "Test case %d", i)
+			assert.Equalf(test.ExpectedHandle, handle, "Test case %d", i)
+		}
+	}
+}
+
+func TestStack(t *testing.T) {
+	assert := assert.New(t)
+
+	type StackTest struct {
+		Fn    func() error
+		Error error
+	}
+
+	tests := []StackTest{
+		{
+			Fn: func() error {
+				stack := vm.NewStack[int](2)
+				return stack.Push(0)
+			},
+			Error: nil,
+		},
+		{
+			Fn: func() error {
+				stack := vm.NewStack[int](2)
+				stack.Push(0)
+				_, err := stack.Pop()
+				return err
+			},
+			Error: nil,
+		},
+		{
+			Fn: func() error {
+				stack := vm.NewStack[int](2)
+				stack.Push(0)
+				_, err := stack.Top()
+				return err
+			},
+			Error: nil,
+		},
+		{
+			Fn: func() error {
+				stack := vm.NewStack[int](2)
+				_, err := stack.Pop()
+				return err
+			},
+			Error: vm.ErrStackUnderflow,
+		},
+		{
+			Fn: func() error {
+				stack := vm.NewStack[int](2)
+				_, err := stack.Top()
+				return err
+			},
+			Error: vm.ErrStackUnderflow,
+		},
+		{
+			Fn: func() error {
+				stack := vm.NewStack[int](0)
+				return stack.Push(0)
+			},
+			Error: vm.ErrStackOverflow,
+		},
+	}
+
+	for i, test := range tests {
+		err := test.Fn()
+		if test.Error == nil {
+			assert.NoError(err, "Test case %d", i)
+		} else {
+			assert.ErrorIs(err, test.Error, "Test case %d", i)
 		}
 	}
 }
@@ -233,6 +331,40 @@ func TestBinaryOps(t *testing.T) {
 	}
 }
 
+func TestAlloc(t *testing.T) {
+	assert := assert.New(t)
+
+	type AllocTest struct {
+		OpCode        common.OpCode
+		Operands      []int
+		ExpectedValue uint32
+		ExpectedError error
+	}
+
+	machine := vm.NewVM()
+	machine.Init(common.NewArchive(), vm.NewBuiltins())
+	executor := vm.NewExecutor(machine)
+
+	tests := []AllocTest{
+		{common.OpAlloc, []int{10}, 1, nil},
+		{common.OpAlloc, []int{50}, 2, nil},
+		{common.OpAlloc, []int{int(math.MaxInt)}, 0, vm.ErrOutOfMemory},
+	}
+
+	for i, test := range tests {
+		err := executor.ExecuteHeap(test.OpCode, test.Operands)
+		if test.ExpectedError != nil {
+			assert.ErrorIsf(err, test.ExpectedError, "Test case %d", i)
+		} else {
+			assert.NoErrorf(err, "Test case %d", i)
+			constant, err := executor.Stack().Pop()
+			assert.NoErrorf(err, "Test case %d", i)
+			assert.Equalf(common.RefConst, constant.Type, "Test case %d", i)
+			assert.Equalf(test.ExpectedValue, constant.Value, "Test case %d", i)
+		}
+	}
+}
+
 func Add() *common.Const {
 	var set common.Instructions
 	set = append(set, common.NewOp(common.OpLoadLocal, 0)...)
@@ -289,75 +421,6 @@ func TestCall(t *testing.T) {
 			fn, err := vm.GetFn(test.Fn)
 			assert.NoErrorf(err, "Get Fn: Test case %d", i)
 			assert.Equalf(fn.Name(), frame.String(), "Test case %d", i)
-		}
-	}
-}
-
-func TestStack(t *testing.T) {
-	assert := assert.New(t)
-
-	type StackTest struct {
-		Fn    func() error
-		Error error
-	}
-
-	tests := []StackTest{
-		{
-			Fn: func() error {
-				stack := vm.NewStack[int](2)
-				return stack.Push(0)
-			},
-			Error: nil,
-		},
-		{
-			Fn: func() error {
-				stack := vm.NewStack[int](2)
-				stack.Push(0)
-				_, err := stack.Pop()
-				return err
-			},
-			Error: nil,
-		},
-		{
-			Fn: func() error {
-				stack := vm.NewStack[int](2)
-				stack.Push(0)
-				_, err := stack.Top()
-				return err
-			},
-			Error: nil,
-		},
-		{
-			Fn: func() error {
-				stack := vm.NewStack[int](2)
-				_, err := stack.Pop()
-				return err
-			},
-			Error: vm.ErrStackUnderflow,
-		},
-		{
-			Fn: func() error {
-				stack := vm.NewStack[int](2)
-				_, err := stack.Top()
-				return err
-			},
-			Error: vm.ErrStackUnderflow,
-		},
-		{
-			Fn: func() error {
-				stack := vm.NewStack[int](0)
-				return stack.Push(0)
-			},
-			Error: vm.ErrStackOverflow,
-		},
-	}
-
-	for i, test := range tests {
-		err := test.Fn()
-		if test.Error == nil {
-			assert.NoError(err, "Test case %d", i)
-		} else {
-			assert.ErrorIs(err, test.Error, "Test case %d", i)
 		}
 	}
 }

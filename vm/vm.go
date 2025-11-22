@@ -68,7 +68,7 @@ func (vm *VM) panic(msg string) {
 
 func NewVM() *VM {
 	return &VM{
-		heap:    NewHeap(),
+		heap:    NewHeap(256),
 		process: NewProcess(),
 	}
 }

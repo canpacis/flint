@@ -31,6 +31,12 @@ func TestOpCodes(t *testing.T) {
 		{common.OpLoadU64, []int{256}, []byte{byte(common.OpLoadU64), 0, 1, 0, 0, 0, 0, 0, 0}},
 		{common.OpSetLocal, []int{256}, []byte{byte(common.OpSetLocal), 0, 1, 0, 0}},
 		// {common.OpSetGlobal, []int{256}, []byte{13, 0, 1, 0, 0}},
+		{common.OpAlloc, []int{256}, []byte{byte(common.OpAlloc), 0, 1, 0, 0}},
+		{common.OpRealloc, []int{256, 256}, []byte{byte(common.OpRealloc), 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0}},
+		{common.OpFree, []int{256}, []byte{byte(common.OpFree), 0, 1, 0, 0, 0, 0, 0, 0}},
+		{common.OpNew, []int{256}, []byte{byte(common.OpNew), 0, 1, 0, 0}},
+		{common.OpNewMod, []int{256, 256}, []byte{byte(common.OpNewMod), 0, 1, 0, 0, 0, 1, 0, 0}},
+		{common.OpNewBuiltin, []int{256}, []byte{byte(common.OpNewBuiltin), 0, 1}},
 		{common.OpPop, []int{}, []byte{byte(common.OpPop)}},
 		{common.OpSwap, []int{}, []byte{byte(common.OpSwap)}},
 		{common.OpCall, []int{256}, []byte{byte(common.OpCall), 0, 1}},
@@ -141,7 +147,7 @@ func TestConstants(t *testing.T) {
 		{[]byte{byte(common.I16Const), 0, 1}, common.I16Const, int16(256)},
 		{[]byte{byte(common.I32Const), 0, 1, 0, 0}, common.I32Const, int32(256)},
 		{[]byte{byte(common.I64Const), 0, 1, 0, 0, 0, 0, 0, 0}, common.I64Const, int64(256)},
-		{[]byte{byte(common.RefConst), 0, 1, 0, 0}, common.RefConst, uint32(256)},
+		{[]byte{byte(common.RefConst), 0, 1, 0, 0, 0, 0, 0, 0}, common.RefConst, uint64(256)},
 	}
 
 	for i, test := range decodeTests {

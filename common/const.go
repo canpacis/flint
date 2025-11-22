@@ -187,9 +187,9 @@ func (c *Const) WriteTo(w io.Writer) (n int64, err error) {
 			size = 1
 		case U16Const, I16Const:
 			size = 2
-		case U32Const, I32Const, F32Const, RefConst:
+		case U32Const, I32Const, F32Const:
 			size = 4
-		case U64Const, I64Const, F64Const:
+		case U64Const, I64Const, F64Const, RefConst:
 			size = 8
 		}
 
@@ -273,7 +273,7 @@ func (c *Const) ReadFrom(r io.Reader) (n int64, err error) {
 			c.Value = value
 		}
 		n += 2
-	case U32Const, RefConst:
+	case U32Const:
 		var value uint32
 		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
 			return n, err
@@ -297,7 +297,7 @@ func (c *Const) ReadFrom(r io.Reader) (n int64, err error) {
 			c.Value = value
 		}
 		n += 4
-	case U64Const:
+	case U64Const, RefConst:
 		var value uint64
 		if err := binary.Read(r, binary.LittleEndian, &value); err != nil {
 			return n, err

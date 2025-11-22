@@ -65,7 +65,12 @@ func TestCompileBlock(t *testing.T) {
 				ast.NewOp("load.builtin", 1),
 				ast.NewOp("load.builtin", 2),
 				ast.NewOp("load.builtin", 3),
-				ast.NewOp("new", 0, 0),
+				ast.NewOp("alloc", 256),
+				ast.NewOp("realloc", 256, 256),
+				ast.NewOp("free", 256),
+				ast.NewOp("new", 0),
+				ast.NewOp("new.mod", 0, 0),
+				ast.NewOp("new.builtin", 0),
 			},
 			[]byte{
 				byte(common.OpLoadConst), 14, 0, 0, 0, // load.const 0, 2
@@ -82,7 +87,12 @@ func TestCompileBlock(t *testing.T) {
 				byte(common.OpLoadBuiltin), 1, 0, // load.builtin 1
 				byte(common.OpLoadBuiltin), 5, 0, // load.builtin 2
 				byte(common.OpLoadBuiltin), 42, 0, // load.builtin 3
-				byte(common.OpNew), 0, 0, 0, 0, 0, 0, // new 0, 0
+				byte(common.OpAlloc), 0, 1, 0, 0, // alloc 256
+				byte(common.OpRealloc), 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, // alloc 256, 256
+				byte(common.OpFree), 0, 1, 0, 0, 0, 0, 0, 0, // free 256
+				byte(common.OpNew), 0, 0, 0, 0, // new 0
+				byte(common.OpNewMod), 0, 0, 0, 0, 0, 0, 0, 0, // new.mod 0, 0
+				byte(common.OpNewBuiltin), 0, 0, // new.builtin 0
 			},
 		},
 		{
